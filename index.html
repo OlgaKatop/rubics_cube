@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Can you solve the Cube?</title>
+    <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+    <style>
+      #rubiks-menu {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        z-index: 10;
+        background: rgba(255,255,255,0.85);
+        padding: 8px;
+        border-radius:8px;
+        font-family: sans-serif;
+        display: flex;
+        flex-direction: column; 
+        gap: 4px
+      }
+      #rubiks-menu button { margin: 2px 4px; padding: 6px 12px; border-radius: 5px; border: none; background: #fc60c3; color: white; font-weight: bold; cursor: pointer;}
+      #rubiks-menu button:hover { background: #f932b0c1;}
+    </style>
+  </head>
+  <body>
+    <div id="rubiks-menu">
+      <h3 style="text-align: center;">Rotations</h3>
+      <b>Rows:</b>
+      <div style="text-align: center;">
+        <span>Top:</span>
+        <button onclick="rotateSlice('Ul')" >&larr;</button>
+        <button onclick="rotateSlice('Ur')" >	&rarr;</button>
+      </div>
+      <div style="text-align: center;">
+        <span>Middle:</span>
+        <button onclick="rotateSlice('Ml')" >&larr;</button>
+        <button onclick="rotateSlice('Mr')" >	&rarr;</button>
+      </div>
+      <div style="text-align: center;">
+        <span>Bottom:</span>
+        <button onclick="rotateSlice('Dl')" >&larr;</button>
+        <button onclick="rotateSlice('Dr')" >	&rarr;</button>
+      </div>
+      <b>Columns:</b>
+      <div style="text-align: center;">
+        <span>Left:</span>
+        <button onclick="rotateSlice('Lu')" >&uarr;</button>
+        <button onclick="rotateSlice('Ld')" >&darr;</button>
+      </div>
+      <div style="text-align: center;">
+        <span>Middle:</span>
+        <button onclick="rotateSlice('Mu')" >&uarr;</button>
+        <button onclick="rotateSlice('Md')" >&darr;</button>
+      </div>
+      <div style="text-align: center;">
+        <span>Right:</span>
+        <button onclick="rotateSlice('Ru')" >&uarr;</button>
+        <button onclick="rotateSlice('Rd')" >&darr;</button>
+      </div>
+      <b>Slices:</b>
+      <div style="text-align: center;">
+        <span>Front:</span>
+        <button onclick="rotateSlice('Fl')" >&larr;</button>
+        <button onclick="rotateSlice('Fr')" >	&rarr;</button>
+      </div>
+      <div style="text-align: center;">
+        <span>Middle:</span>
+        <button onclick="rotateSlice('Msl')" >&larr;</button>
+        <button onclick="rotateSlice('Msr')" >	&rarr;</button>
+      </div>
+      <div style="text-align: center;">
+        <span>Back:</span>
+        <button onclick="rotateSlice('Bl')" >&larr;</button>
+        <button onclick="rotateSlice('Br')" >	&rarr;</button>
+      </div>
+    </div>
+
+    <a-scene stats>
+      <a-assets>
+        <a-asset-item id="cube-model" src="https://OlgaKatop.github.io/rubics_cube/rubiks_cube_standard_solid_v3.glb"></a-asset-item>
+        <img id="skyTexture" src="https://OlgaKatop.github.io/rubics_cube/background4k.jpg" crossorigin="anonymous" crossorigin="anonymous"/>
+        <a-asset-item id="solve-cube" src="https://OlgaKatop.github.io/rubics_cube/solve_the_cube_final.glb"></a-asset-item>
+        <a-asset-item id="stone-base" src="https://OlgaKatop.github.io/rubics_cube/stone_base.glb"></a-asset-item>
+      </a-assets>
+      <a-sky src="#skyTexture"></a-sky>
+        <a-entity light="type: directional; intensity:6.2; color:#fff" position="1 4 2"></a-entity>
+        <a-entity light="type: ambient; intensity:5.35; color:#fff"></a-entity>
+        <a-entity light="type: point; intensity:3.6; distance:10" position="-3 2 0"></a-entity>
+        <a-entity light="type: point; intensity:3.6; distance:10" position="0 1 -5"></a-entity>
+        <a-entity light="type: directional; intensity:6.2; color:#fff" position="-8 4 2"></a-entity>
+        <a-entity light="type: directional; intensity:6.2; color:#fff" position="6 4 2"></a-entity>
+        <a-entity light="type: directional; intensity:6.2; color:#fff" position="1 4 -4"></a-entity>
+        <a-entity id="cube-cluster"></a-entity>
+        <a-entity gltf-model="#solve-cube" position="1 4 -1" scale="30 30 30"></a-entity>
+        <a-entity gltf-model="#stone-base" position="-0.5 -1.1 -1.9" scale="45 45 45"></a-entity>
+        <a-entity camera="" position="0 2.5 3.5" wasd-controls="" rotation="" look-controls="" aframe-injected=""></a-entity>
+    </a-scene>
+
+    <script>
+    let currentlyRotating= false;
+    // Cube parameters
+    const positions = [-1, 0, 1];
+    const layersY = [1, 2, 3];
+    const layersZ = [-2, -3, -4];
+    const cubeSize = 0.9;
+    const model = '#cube-model';
+
+    // Slices definitions, with their centers and match functions
+    const sliceDefs = {
+      Ur:  {center: [0,3,-3],  match: (x,y,z) => y===3, axis: 'y', angle: 90},      // Top row rotate right
+      Ul:  {center: [0,3,-3],  match: (x,y,z) => y===3, axis: 'y', angle: -90},      // Top row rotate left
+      Dl:  {center: [0,1,-3],  match: (x,y,z) => y===1, axis: 'y', angle: -90},     // Bottom row rotate left
+      Dr:  {center: [0,1,-3],  match: (x,y,z) => y===1, axis: 'y', angle: 90},     // Bottom row rotate right
+      Lu:  {center: [-1,2,-3], match: (x,y,z) => x===-1, axis: 'x', angle: -90},    // Left column rotate up
+      Ld:  {center: [-1,2,-3], match: (x,y,z) => x===-1, axis: 'x', angle: 90},    // Left column rotate down
+      Rd:  {center: [1,2,-3],  match: (x,y,z) => x===1, axis: 'x', angle: 90},      // Right column rotate down
+      Ru:  {center: [1,2,-3],  match: (x,y,z) => x===1, axis: 'x', angle: -90},      // Right column rotate up
+      Mu:  {center: [0,2,-3],  match: (x,y,z) => x===0, axis: 'x', angle: -90},     //Middle column rotate up
+      Md:  {center: [0,2,-3],  match: (x,y,z) => x===0, axis: 'x', angle: 90},      //Middle column rotate down
+      Fl:  {center: [0,2,-2],  match: (x,y,z) => z===-2, axis: 'z', angle: 90},     // Front slice rotate left
+      Fr:  {center: [0,2,-2],  match: (x,y,z) => z===-2, axis: 'z', angle: -90},     // Front slice rotate right
+      Msl: {center: [0,2,-3],  match: (x,y,z) => z===-3, axis: 'z', angle: 90},     //Middle slice rotate left
+      Msr: {center: [0,2,-3],  match: (x,y,z) => z===-3, axis: 'z', angle: -90},     //Middle slice rotate right
+      Br:  {center: [0,2,-4],  match: (x,y,z) => z===-4, axis: 'z', angle: -90},    // Back slice rotate right
+      Bl:  {center: [0,2,-4],  match: (x,y,z) => z===-4, axis: 'z', angle: 90},    // Back slice rotate left
+      Mr:  {center: [0,2,-3],  match: (x,y,z) => y===2, axis: 'y', angle: 90},      // Rotate middle row right
+      Ml:  {center: [0,2,-3],  match: (x,y,z) => y===2, axis: 'y', angle: -90}      // Rotate middle row left
+    };
+
+    // Create all cubelets under cube-cluster, no duplicates
+    const cluster = document.getElementById('cube-cluster');
+    let cubelets = [];
+    for (let y of layersY) {
+      for (let x of positions) {
+        for (let z of layersZ) {
+          let cubelet = document.createElement('a-entity');
+          cubelet.setAttribute('gltf-model', model);
+          cubelet.setAttribute('position', `${x} ${y} ${z}`);
+          cubelet.setAttribute('scale', `${cubeSize} ${cubeSize} ${cubeSize}`);
+          cubelet.setAttribute('rotation', `0 0 0`);
+          cubelet.setAttribute('data-x', x);
+          cubelet.setAttribute('data-y', y);
+          cubelet.setAttribute('data-z', z);
+          cluster.appendChild(cubelet);
+          cubelets.push(cubelet);
+        }
+      }
+    }
+
+    // Utility: Convert string rotation to object
+    function parseRotation(rot) {
+      if (typeof rot === 'string') {
+        let arr = rot.trim().split(/\s+/).map(Number);
+        return {x: arr[0]||0, y: arr[1]||0, z: arr[2]||0};
+      }
+      return rot || {x:0, y:0, z:0};
+    }
+
+    // Rotate slice animation
+    function rotateSlice(face) {
+      if (currentlyRotating){
+        return;
+      }
+      currentlyRotating= true;
+      const sliceDef = sliceDefs[face];
+      if (!sliceDef) return;
+      const {center, match, axis, angle} = sliceDef;
+
+      // Find affected cubelets
+      let affected = cubelets.filter(cubelet => {
+        const x = parseInt(cubelet.getAttribute('data-x'));
+        const y = parseInt(cubelet.getAttribute('data-y'));
+        const z = parseInt(cubelet.getAttribute('data-z'));
+        return match(x,y,z);
+      });
+
+      // For each affected cubelet, animate rotation about the slice center
+      affected.forEach(cubelet => {
+        // Get current position and rotation
+        let pos = cubelet.getAttribute('position');
+        let rot = parseRotation(cubelet.getAttribute('rotation'));
+
+        // Compute position relative to slice center
+        let rel = {
+          x: pos.x - center[0],
+          y: pos.y - center[1],
+          z: pos.z - center[2]
+        };
+
+        // Rotate rel position around axis by angle
+        let rad = angle * Math.PI/180;
+        let newRel = {...rel};
+        if (axis === 'x') {
+          newRel.y = rel.y * Math.cos(rad) - rel.z * Math.sin(rad);
+          newRel.z = rel.y * Math.sin(rad) + rel.z * Math.cos(rad);
+        } else if (axis === 'y') {
+          newRel.x = rel.x * Math.cos(rad) - rel.z * Math.sin(rad);
+          newRel.z = rel.x * Math.sin(rad) + rel.z * Math.cos(rad);
+        } else if (axis === 'z') {
+          newRel.x = rel.x * Math.cos(rad) - rel.y * Math.sin(rad);
+          newRel.y = rel.x * Math.sin(rad) + rel.y * Math.cos(rad);
+        }
+
+        // Compute new world position
+        let newPos = {
+          x: center[0] + Math.round(newRel.x),
+          y: center[1] + Math.round(newRel.y),
+          z: center[2] + Math.round(newRel.z)
+        };
+
+        // Animate position
+        cubelet.setAttribute('animation__pos', {
+          property: 'position',
+          to: `${newPos.x} ${newPos.y} ${newPos.z}`,
+          dur: 600,
+          easing: 'easeInOutQuad'
+        });
+
+        // Animate rotation (just axis for visual)
+        let newRot = {...rot};
+        if (axis === 'x') {
+          newRot.x += angle;
+        } else if (axis === 'y') {
+          newRot.y += angle;
+        } else if (axis === 'z') {
+          newRot.z += angle;
+        }
+        cubelet.setAttribute('animation__rot', {
+          property: 'rotation',
+          to: `${newRot.x} ${newRot.y} ${newRot.z}`,
+          dur: 600,
+          easing: 'easeInOutQuad'
+        });
+
+        // Update stored position/rotation after animation completes
+        setTimeout(() => {
+          cubelet.setAttribute('position', `${newPos.x} ${newPos.y} ${newPos.z}`);
+          cubelet.setAttribute('rotation', `${newRot.x} ${newRot.y} ${newRot.z}`);
+          cubelet.setAttribute('data-x', newPos.x);
+          cubelet.setAttribute('data-y', newPos.y);
+          cubelet.setAttribute('data-z', newPos.z);
+          // Remove animation so further clicks work
+          cubelet.removeAttribute('animation__pos');
+          cubelet.removeAttribute('animation__rot');
+          currentlyRotating= false;
+
+        }, 650);
+      });
+    }
+    window.rotateSlice = rotateSlice;
+    </script>
+  </body>
+</html>
